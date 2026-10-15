@@ -44,6 +44,7 @@ async function pingBackground() {
     diag('background v' + info.version + ' OK');
     diag('menus=' + info.hasMenus +
          ' messageDisplayScripts=' + info.hasMessageDisplayScripts +
+         ' manifestScripts=' + info.manifestMessageDisplayScripts +
          ' messageDisplay=' + info.hasMessageDisplay);
   } catch (e) {
     diag('background injoignable: ' + e.message);
@@ -136,7 +137,8 @@ async function getSelectionFromMessage() {
     hideError();
   } else {
     diag('aucune selection (source: ' + result.source + ')');
-    showError('Aucun texte selectionne. Selectionnez du texte dans le message, puis cliquez sur « Selection ».');
+    showError('Aucun texte selectionne. Selectionnez du texte dans le message, puis cliquez sur « Selection ». ' +
+              'Autre solution : clic droit sur la selection → « Traduire en français (DeepL) ».');
   }
 }
 

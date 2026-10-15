@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "DeepL Translator for Thunderbird",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Traduire en français le texte sélectionné dans un mail, via l'API DeepL.",
   "author": "Marc",
   "applications": {
@@ -14,11 +14,18 @@
   "permissions": [
     "menus",
     "messagesRead",
+    "messagesModify",
     "tabs",
     "storage",
     "notifications",
     "https://api.deepl.com/*",
     "https://api-free.deepl.com/*"
+  ],
+  "message_display_scripts": [
+    {
+      "js": ["messageDisplay.js"],
+      "run_at": "document_idle"
+    }
   ],
   "background": {
     "scripts": ["background.js"],

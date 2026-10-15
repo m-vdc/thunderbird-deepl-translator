@@ -58,18 +58,25 @@ browser.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       return true;
 
     // Health check / diagnostics.
-    case 'deeplPing':
+    case 'deeplPing': {
+      let manifestScripts = false;
+      try {
+        const mf = browser.runtime.getManifest();
+        manifestScripts = Array.isArray(mf.message_display_scripts) && mf.message_display_scripts.length > 0;
+      } catch (e) { /* ignore */ }
       sendResponse({
         ok: true,
-        version: '1.1.0',
+        version: '1.2.0',
         hasMenus: !!(browser.menus && browser.menus.create),
         hasMessageDisplayScripts: !!(browser.messageDisplayScripts && browser.messageDisplayScripts.register),
+        manifestMessageDisplayScripts: manifestScripts,
         hasMessageDisplay: !!browser.messageDisplay,
         apiKeyConfigured: !!apiKey,
         apiType: apiType,
         cachedTabs: Array.from(selectionCache.keys())
       });
       return true;
+    }
 
     default:
       return false;
@@ -193,9 +200,9 @@ async function resolveSelection(senderTab) {
     if (resp && resp.text && resp.text.trim()) {
       return { text: resp.text.trim(), source: 'message display script', diagnostics: diagnostics };
     }
-    diagnostics.push('sendMessage: reponse vide (selection perdue ?)');
+    diagnostics.push('sendMessage OK mais aucune selection active dans le message');
   } catch (e) {
-    diagnostics.push('sendMessage: ' + e.message);
+    diagnostics.push('sendMessage KO (script non injecte) : ' + e.message);
   }
 
   // Strategy 3: inject into all frames (web tabs / older Thunderbird).
@@ -339,5 +346,5 @@ if (browser.commands && browser.commands.onCommand) {
 setupMenus();
 registerMessageDisplayScript();
 
-console.log('[DeepL] background v1.1.0 ready. menus=' + !!(browser.menus && browser.menus.create) +
+console.log('[DeepL] background v1.2.0 ready. menus=' + !!(browser.menus && browser.menus.create) +
   ' messageDisplayScripts=' + !!(browser.messageDisplayScripts && browser.messageDisplayScripts.register));

@@ -12,6 +12,15 @@
  */
 
 (function () {
+  // Idempotence guard: this script can be injected twice (once by the
+  // "message_display_scripts" manifest key on TB 151+, once by
+  // messageDisplayScripts.register() on older versions). Only the first
+  // injection must install listeners.
+  if (window.__deeplTranslatorInjected) {
+    return;
+  }
+  window.__deeplTranslatorInjected = true;
+
   const api = typeof browser !== 'undefined' ? browser : (typeof messenger !== 'undefined' ? messenger : null);
   if (!api || !api.runtime) {
     return;
