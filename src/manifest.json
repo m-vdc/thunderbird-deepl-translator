@@ -1,0 +1,55 @@
+{
+  "manifest_version": 2,
+  "name": "DeepL Translator for Thunderbird",
+  "version": "1.0.0",
+  "description": "Translate selected text in emails to French using DeepL API",
+  "author": "Marc",
+  "applications": {
+    "gecko": {
+      "id": "deepl-translator@marc.local",
+      "strict_min_version": "78.0",
+      "strict_max_version": "157.*"
+    }
+  },
+  "permissions": [
+    "contextMenus",
+    "activeTab",
+    "storage",
+    "notifications",
+    "https://api.deepl.com/*",
+    "https://api-free.deepl.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "DeepL Translator",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "64": "icons/icon64.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "64": "icons/icon64.png"
+  },
+  "commands": {
+    "translate-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+T",
+        "mac": "Command+Shift+T"
+      },
+      "description": "Translate selected text to French"
+    }
+  }
+}

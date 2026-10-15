@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeepL Translator - Options</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px;
+      font-size: 14px;
+      color: #1a1a1a;
+      background: #fafafa;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 24px;
+    }
+    .section {
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .section:last-child { border-bottom: none; }
+    .section h2 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .form-group { margin-bottom: 16px; }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      font-size: 13px;
+      color: #333;
+    }
+    input[type="text"], input[type="password"], select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #1976d2;
+      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+    }
+    .help-text {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+    }
+    .help-text a { color: #1976d2; text-decoration: none; }
+    .help-text a:hover { text-decoration: underline; }
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #e0e0e0;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.98); }
+    .btn-primary {
+      background: #1976d2;
+      color: white;
+    }
+    .btn-primary:hover { background: #1565c0; }
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    .btn-secondary:hover { background: #eee; }
+    .status-msg {
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .status-msg.success { background: #e8f5e9; color: #2e7d32; }
+    .status-msg.error { background: #ffebee; color: #c62828; }
+    .status-msg.hidden { display: none; }
+    .api-type-options {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+    }
+    .radio-option {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .radio-option:hover { border-color: #1976d2; }
+    .radio-option input { display: none; }
+    .radio-option input:checked + .radio-label { color: #1976d2; }
+    .radio-option:has(input:checked) {
+      border-color: #1976d2;
+      background: #e8eaf6;
+    }
+    .radio-label {
+      font-weight: 500;
+      margin: 0;
+    }
+    .radio-desc {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+      text-align: center;
+    }
+    .test-result {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .test-result.success { background: #e8f5e9; color: #2e7d32; }
+    .test-result.error { background: #ffebee; color: #c62828; }
+    .test-result.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚙️ DeepL Translator - Options</h1>
+    <p class="subtitle">Configurez votre clé API DeepL pour traduire les textes sélectionnés dans Thunderbird.</p>
+
+    <div id="statusMsg" class="status-msg hidden"></div>
+
+    <div class="section">
+      <h2>🔑 Configuration de l'API DeepL</h2>
+
+      <div class="form-group">
+        <label for="apiType">Type de compte DeepL</label>
+        <div class="api-type-options">
+          <div class="radio-option">
+            <input type="radio" id="apiFree" name="apiType" value="free" checked>
+            <span class="radio-label">Gratuit (Free)</span>
+            <span class="radio-desc">500 000 caractères/mois<br>api-free.deepl.com</span>
+          </div>
+          <div class="radio-option">
+            <input type="radio" id="apiPro" name="apiType" value="pro">
+            <span class="radio-label">Pro (Payant)</span>
+            <span class="radio-desc">Illimité, priorité<br>api.deepl.com</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="apiKey">Clé d'authentification DeepL</label>
+        <input type="password" id="apiKey" placeholder="Votre clé d'authentification DeepL (ex: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx)">
+        <div class="help-text">
+          Votre clé d'authentification se trouve dans <a href="https://www.deepl.com/pro-account/keys" target="_blank">votre compte DeepL</a> > Clés API.
+          Format : <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx</code>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <button id="testBtn" class="btn-secondary">🔍 Tester la connexion</button>
+        <div id="testResult" class="test-result hidden"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>ℹ️ Utilisation</h2>
+      <div class="help-text">
+        <strong>Raccourci clavier :</strong> <kbd>Ctrl+Shift+T</kbd> (Windows/Linux) ou <kbd>Cmd+Shift+T</kbd> (Mac)<br><br>
+        <strong>Comment utiliser :</strong>
+        <ol style="margin: 8px 0; padding-left: 20px;">
+          <li>Sélectionnez du texte dans un email</li>
+          <li>Clic droit → "Traduire en français (DeepL)"</li>
+          <li>Ou utilisez le raccourci clavier</li>
+          <li>La traduction apparaît dans une notification</li>
+        </ol>
+        <strong>Fonctionnalités :</strong>
+        <ul style="margin: 8px 0; padding-left: 20px;">
+          <li>Traduction vers le français</li>
+          <li>Copie de la traduction dans le presse-papiers</li>
+          <li>Remplacement du texte sélectionné (dans une fenêtre de composition)</li>
+          <li>Raccourci clavier personnalisable</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button id="saveBtn" class="btn-primary">💾 Enregistrer</button>
+      <button id="clearBtn" class="btn-secondary">🗑️ Effacer la configuration</button>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
