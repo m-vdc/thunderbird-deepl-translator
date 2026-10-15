@@ -1,8 +1,12 @@
 /**
- * DeepL Translator for Thunderbird - Popup Script (v1.1.0)
+ * DeepL Translator for Thunderbird - Popup Script (v1.3.0)
  *
  * All privileged work (reading the selection, calling DeepL) goes through the
  * background script. The popup only renders.
+ *
+ * The selection is captured automatically when the popup opens, so there is no
+ * "Sélection" button anymore: a popup closes as soon as you click in the
+ * message, so it could never fetch a *new* selection anyway.
  */
 
 const diagLines = [];
@@ -11,8 +15,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   document.getElementById('translateBtn').addEventListener('click', translate);
-  document.getElementById('getSelectionBtn').addEventListener('click', getSelectionFromMessage);
-  document.getElementById('copyBtn').addEventListener('click', copyTranslation);
+  document.getElementById('windowBtn').addEventListener('click', openResultWindow);
   document.getElementById('settingsLink').addEventListener('click', function (e) {
     e.preventDefault();
     browser.runtime.openOptionsPage();
@@ -137,8 +140,8 @@ async function getSelectionFromMessage() {
     hideError();
   } else {
     diag('aucune selection (source: ' + result.source + ')');
-    showError('Aucun texte selectionne. Selectionnez du texte dans le message, puis cliquez sur « Selection ». ' +
-              'Autre solution : clic droit sur la selection → « Traduire en français (DeepL) ».');
+    showError('Aucun texte selectionne dans le message. Selectionnez du texte puis cliquez l\'icone, ' +
+              'ou utilisez le clic droit → « Traduire en français (DeepL) ».');
   }
 }
 
@@ -157,7 +160,7 @@ async function translate() {
   setLoading(true);
 
   try {
-    const res = await browser.runtime.sendMessage({ command: 'deeplTranslate', text: sourceText });
+    const res = await browser.runtime.sendMessage({ command: 'deeplTranslate', text: sourceText, openWindow: false });
     if (res && res.ok && res.translation) {
       showResult(res.translation);
       diag('traduction OK (' + res.translation.length + ' car.)');
@@ -178,26 +181,20 @@ async function translate() {
   }
 }
 
+async function openResultWindow() {
+  try {
+    await browser.runtime.sendMessage({ command: 'deeplOpenResultWindow' });
+    window.close();
+  } catch (e) {
+    diag('ouverture fenetre KO: ' + e.message);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 
 function showResult(translation) {
   document.getElementById('resultText').textContent = translation;
   document.getElementById('resultArea').classList.remove('hidden');
-}
-
-function copyTranslation() {
-  const text = document.getElementById('resultText').textContent;
-  navigator.clipboard.writeText(text).then(function () {
-    showToast('Copie dans le presse-papiers');
-  }).catch(function () {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    showToast('Copie dans le presse-papiers');
-  });
 }
 
 function showError(message) {
@@ -219,17 +216,4 @@ function setLoading(loading) {
     btn.disabled = false;
     btn.textContent = 'Traduire en francais';
   }
-}
-
-function showToast(message) {
-  const toast = document.createElement('div');
-  toast.textContent = message;
-  toast.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);' +
-    'background:#333;color:#fff;padding:8px 16px;border-radius:6px;font-size:12px;z-index:1000;';
-  document.body.appendChild(toast);
-  setTimeout(function () {
-    toast.style.opacity = '0';
-    toast.style.transition = 'opacity .3s';
-    setTimeout(function () { toast.remove(); }, 300);
-  }, 1800);
 }

@@ -42,10 +42,11 @@ Extension Thunderbird qui permet de traduire du texte sélectionné dans les ema
 2. Appuyez sur `Ctrl+Shift+T` (Windows/Linux) ou `Cmd+Shift+T` (Mac)
 
 ### Via le popup de l'extension
-1. Cliquez sur l'icône de l'extension dans la barre d'outils
+1. Cliquez sur l'icône de l'extension dans la barre d'outils (ou celle de la barre du message)
 2. Le texte sélectionné est automatiquement récupéré
 3. Cliquez sur **"Traduire en français"**
-4. Copiez la traduction ou remplacez le texte sélectionné (dans une fenêtre de composition)
+4. Le texte de la traduction est sélectionnable : Ctrl+C pour copier
+5. **"Ouvrir dans une fenêtre"** pour la lire en grand dans une fenêtre flottante
 
 ## Raccourci clavier personnalisé
 
@@ -106,6 +107,29 @@ L'extension utilise l'API DeepL v2 :
 | Remplacement ne marche pas | Ne fonctionne que dans une fenêtre de composition |
 
 ## Journal des versions
+
+### v1.3.0
+- **Notification remplacée par une fenêtre flottante.** La bulle de notification
+  Windows ne peut pas afficher plus de quelques lignes : les traductions longues
+  étaient tronquées. Le résultat s'ouvre maintenant dans une vraie fenêtre
+  (`windows.create`, 560×500), texte intégral, défilable et sélectionnable
+  (Ctrl+C). La fenêtre est **réutilisée** si elle est déjà ouverte, au lieu d'en
+  empiler une par traduction. Les notifications ne servent plus qu'aux messages
+  d'erreur courts.
+- La fenêtre flottante permet aussi de retoucher le texte source et de relancer
+  une traduction.
+- **Bouton « Copier » supprimé** du popup (le texte est sélectionnable, Ctrl+C).
+- **Bouton « Sélection » supprimé** : la sélection est capturée automatiquement à
+  l'ouverture du popup, et un popup se ferme dès qu'on clique dans le message —
+  ce bouton ne pouvait donc jamais récupérer une nouvelle sélection.
+- Nouveau bouton **« Ouvrir dans une fenêtre »** dans le popup.
+
+### v1.2.0
+- Permission **`messagesModify`** ajoutée : l'API `messageDisplayScripts` ne
+  fonctionne qu'avec elle (sans quoi Thunderbird n'expose même pas l'objet).
+- Clé de manifeste **`message_display_scripts`** (TB 151+) : injection
+  déclarative du script de capture, sans dépendre de l'API runtime.
+- Script de capture rendu idempotent (double injection sans effet).
 
 ### v1.1.0 — correctif majeur
 Deux bugs bloquants corrigés :

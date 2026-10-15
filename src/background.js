@@ -50,11 +50,18 @@ browser.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
     // The popup asks the background to translate.
     case 'deeplTranslate':
-      translateText(message.text, sender && sender.tab)
+      translateText(message.text, sender && sender.tab, { openWindow: message.openWindow !== false })
         .then(function (res) { sendResponse(res); })
         .catch(function (e) {
           sendResponse({ ok: false, error: String(e && e.message ? e.message : e) });
         });
+      return true;
+
+    // The popup asks to show the result in the floating window.
+    case 'deeplOpenResultWindow':
+      openResultWindow()
+        .then(function () { sendResponse({ ok: true }); })
+        .catch(function (e) { sendResponse({ ok: false, error: String(e) }); });
       return true;
 
     // Health check / diagnostics.
@@ -66,7 +73,7 @@ browser.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       } catch (e) { /* ignore */ }
       sendResponse({
         ok: true,
-        version: '1.2.0',
+        version: '1.3.0',
         hasMenus: !!(browser.menus && browser.menus.create),
         hasMessageDisplayScripts: !!(browser.messageDisplayScripts && browser.messageDisplayScripts.register),
         manifestMessageDisplayScripts: manifestScripts,
@@ -251,7 +258,9 @@ async function resolveSelection(senderTab) {
  * 6. Translation
  * ------------------------------------------------------------------ */
 
-async function translateText(text, tab) {
+async function translateText(text, tab, options) {
+  // The popup displays the result inline, so it asks for no window.
+  const showWindow = !options || options.openWindow !== false;
   if (!apiKey) {
     notify('Clé API DeepL non configurée', 'Ouvrez les options de l\'extension pour saisir votre clé.');
     return { ok: false, error: 'no_api_key' };
@@ -301,8 +310,55 @@ async function translateText(text, tab) {
     deeplLastResult: { original: text, translation: translation, at: Date.now() }
   });
 
-  notify('Traduction (Français)', translation.length > 220 ? translation.slice(0, 220) + '…' : translation);
+  // Show the full result in a floating window. A desktop notification cannot
+  // display more than a few lines (truncated on Windows), so it is only used
+  // for short error messages.
+  if (showWindow) {
+    await openResultWindow();
+  }
   return { ok: true, translation: translation };
+}
+
+/* ------------------------------------------------------------------ *
+ * 6b. Floating result window (reused if already open)
+ * ------------------------------------------------------------------ */
+
+let resultWindowId = null;
+
+async function openResultWindow() {
+  // Reuse the existing window if it is still open.
+  if (resultWindowId !== null) {
+    try {
+      await browser.windows.update(resultWindowId, { focused: true });
+      return resultWindowId;
+    } catch (e) {
+      resultWindowId = null;
+    }
+  }
+
+  const base = {
+    url: browser.runtime.getURL('result.html'),
+    width: 560,
+    height: 500
+  };
+
+  let win;
+  try {
+    win = await browser.windows.create(Object.assign({ type: 'popup' }, base));
+  } catch (e) {
+    // Some Thunderbird builds do not accept type:"popup".
+    win = await browser.windows.create(base);
+  }
+  resultWindowId = win.id;
+  return resultWindowId;
+}
+
+if (browser.windows && browser.windows.onRemoved) {
+  browser.windows.onRemoved.addListener(function (windowId) {
+    if (windowId === resultWindowId) {
+      resultWindowId = null;
+    }
+  });
 }
 
 function notify(title, message) {
@@ -346,5 +402,5 @@ if (browser.commands && browser.commands.onCommand) {
 setupMenus();
 registerMessageDisplayScript();
 
-console.log('[DeepL] background v1.2.0 ready. menus=' + !!(browser.menus && browser.menus.create) +
+console.log('[DeepL] background v1.3.0 ready. menus=' + !!(browser.menus && browser.menus.create) +
   ' messageDisplayScripts=' + !!(browser.messageDisplayScripts && browser.messageDisplayScripts.register));

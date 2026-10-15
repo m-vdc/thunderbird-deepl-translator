@@ -78,8 +78,9 @@
       white-space: pre-wrap;
       max-height: 160px;
       overflow-y: auto;
+      user-select: text;
     }
-    .actions { display: flex; gap: 8px; margin-top: 8px; }
+    .result-actions { margin-top: 8px; }
     .settings-link {
       display: block;
       text-align: center;
@@ -115,7 +116,6 @@
       white-space: pre-wrap;
     }
     .diag.hidden { display: none; }
-    .diag b { color: #333; }
   </style>
 </head>
 <body>
@@ -134,19 +134,18 @@
 
   <div class="input-group">
     <label>Texte à traduire</label>
-    <textarea id="sourceText" placeholder="Sélectionnez du texte dans un email puis cliquez sur « Sélection », ou collez le texte ici..."></textarea>
+    <textarea id="sourceText" placeholder="Le texte sélectionné dans le message apparaît ici automatiquement. Vous pouvez aussi le coller."></textarea>
   </div>
 
   <div class="btn-group">
     <button id="translateBtn" class="btn-primary">Traduire en français</button>
-    <button id="getSelectionBtn" class="btn-secondary" title="Récupérer le texte sélectionné dans le message">Sélection</button>
   </div>
 
   <div id="resultArea" class="result-area hidden">
-    <div class="result-label">Traduction (Français)</div>
+    <div class="result-label">Traduction (français)</div>
     <div id="resultText" class="result-text"></div>
-    <div class="actions">
-      <button id="copyBtn" class="btn-secondary">Copier</button>
+    <div class="result-actions">
+      <button id="windowBtn" class="btn-secondary">Ouvrir dans une fenêtre</button>
     </div>
   </div>
 
