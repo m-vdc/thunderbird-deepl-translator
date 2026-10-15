@@ -1,6 +1,12 @@
 /**
- * DeepL Translator for Thunderbird - Background Script
- * Handles context menu, DeepL API calls, and message passing
+ * DeepL Translator for Thunderbird - Background Script (v1.1.0)
+ *
+ * IMPORTANT ORDER: the runtime.onMessage listener is registered FIRST, before
+ * any other API call. In v1.0.0 the script called browser.contextMenus.create()
+ * at top level; that API does not exist in Thunderbird (the correct one is
+ * browser.menus, with the "menus" permission), so the script threw and died
+ * before the listener was registered -> the popup got
+ * "Could not establish connection. Receiving end does not exist."
  */
 
 const DEEPL_API_URLS = {
@@ -11,13 +17,82 @@ const DEEPL_API_URLS = {
 let apiKey = '';
 let apiType = 'free';
 
-// Load API key from storage on startup
-browser.storage.local.get(['deeplApiKey', 'deeplApiType']).then(result => {
-  apiKey = result.deeplApiKey || '';
-  apiType = result.deeplApiType || 'free';
+// tabId -> last known selected text in that message display tab
+const selectionCache = new Map();
+
+/* ------------------------------------------------------------------ *
+ * 1. MESSAGE HANDLING - registered first, must never be skipped
+ * ------------------------------------------------------------------ */
+
+browser.runtime.onMessage.addListener(function (message, sender, sendResponse) {
+  if (!message || !message.command) {
+    return false;
+  }
+
+  switch (message.command) {
+    // Pushed by the message display script on mouseup / keyup.
+    case 'deeplSelectionChanged': {
+      const tabId = sender && sender.tab ? sender.tab.id : undefined;
+      if (tabId !== undefined) {
+        selectionCache.set(tabId, message.text || '');
+      }
+      return false;
+    }
+
+    // The popup asks for the current selection.
+    case 'deeplGetSelection':
+      resolveSelection(sender && sender.tab)
+        .then(function (result) { sendResponse(result); })
+        .catch(function (e) {
+          sendResponse({ text: '', source: 'error', diagnostics: [String(e)] });
+        });
+      return true;
+
+    // The popup asks the background to translate.
+    case 'deeplTranslate':
+      translateText(message.text, sender && sender.tab)
+        .then(function (res) { sendResponse(res); })
+        .catch(function (e) {
+          sendResponse({ ok: false, error: String(e && e.message ? e.message : e) });
+        });
+      return true;
+
+    // Health check / diagnostics.
+    case 'deeplPing':
+      sendResponse({
+        ok: true,
+        version: '1.1.0',
+        hasMenus: !!(browser.menus && browser.menus.create),
+        hasMessageDisplayScripts: !!(browser.messageDisplayScripts && browser.messageDisplayScripts.register),
+        hasMessageDisplay: !!browser.messageDisplay,
+        apiKeyConfigured: !!apiKey,
+        apiType: apiType,
+        cachedTabs: Array.from(selectionCache.keys())
+      });
+      return true;
+
+    default:
+      return false;
+  }
 });
 
-browser.storage.onChanged.addListener((changes) => {
+/* ------------------------------------------------------------------ *
+ * 2. Settings
+ * ------------------------------------------------------------------ */
+
+function loadSettings() {
+  browser.storage.local.get(['deeplApiKey', 'deeplApiType']).then(function (result) {
+    apiKey = result.deeplApiKey || '';
+    apiType = result.deeplApiType || 'free';
+  }).catch(function (e) {
+    console.error('[DeepL] loadSettings failed:', e);
+  });
+}
+
+browser.storage.onChanged.addListener(function (changes, area) {
+  if (area !== 'local') {
+    return;
+  }
   if (changes.deeplApiKey) {
     apiKey = changes.deeplApiKey.newValue || '';
   }
@@ -26,218 +101,243 @@ browser.storage.onChanged.addListener((changes) => {
   }
 });
 
-// Create context menu on install/startup
-browser.contextMenus.create({
-  id: 'deepl-translate-selection',
-  title: 'Traduire en français (DeepL)',
-  contexts: ['selection'],
-  documentUrlPatterns: ['*://*/*', 'mailto:*']
-}, () => {
-  if (browser.runtime.lastError) {
-    console.error('Context menu creation failed:', browser.runtime.lastError);
-  }
-});
+loadSettings();
 
-browser.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'deepl-translate-selection' && info.selectionText) {
-    await translateText(info.selectionText, tab);
-  }
-});
+/* ------------------------------------------------------------------ *
+ * 3. Context menu - Thunderbird API: browser.menus + "menus" permission
+ * ------------------------------------------------------------------ */
 
-// Handle keyboard shortcut
-browser.commands.onCommand.addListener(async (command, tab) => {
-  if (command === 'translate-selection') {
-    // Get selected text from the active message
-    const selectedText = await getSelectedText(tab);
-    if (selectedText) {
-      await translateText(selectedText, tab);
+function setupMenus() {
+  if (!browser.menus || !browser.menus.create) {
+    console.warn('[DeepL] browser.menus unavailable - context menu disabled.');
+    return;
+  }
+
+  browser.menus.create({
+    id: 'deepl-translate-selection',
+    title: 'Traduire en français (DeepL)',
+    contexts: ['selection']
+  }, function () {
+    if (browser.runtime.lastError) {
+      console.error('[DeepL] menus.create failed:', browser.runtime.lastError.message);
     }
-  }
-});
+  });
 
-async function getSelectedText(tab) {
+  browser.menus.onClicked.addListener(function (info, tab) {
+    if (info.menuItemId === 'deepl-translate-selection' && info.selectionText) {
+      translateText(info.selectionText, tab).catch(function (e) {
+        console.error('[DeepL] menu translation failed:', e);
+      });
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * 4. Message display script - the only way to read the selection
+ * ------------------------------------------------------------------ */
+
+function registerMessageDisplayScript() {
+  if (!browser.messageDisplayScripts || !browser.messageDisplayScripts.register) {
+    console.warn('[DeepL] browser.messageDisplayScripts unavailable - selection capture disabled.');
+    return;
+  }
   try {
-    // For Thunderbird message display, we need to inject a content script
-    const results = await browser.tabs.executeScript(tab.id, {
-      code: 'window.getSelection().toString()',
-      runAt: 'document_start'
+    const p = browser.messageDisplayScripts.register({
+      js: [{ file: 'messageDisplay.js' }],
+      runAt: 'document_idle'
     });
-    return results && results[0] ? results[0].trim() : '';
+    if (p && typeof p.catch === 'function') {
+      p.catch(function (e) {
+        console.error('[DeepL] messageDisplayScripts.register failed:', e);
+      });
+    }
   } catch (e) {
-    console.error('Failed to get selection:', e);
-    return '';
+    console.error('[DeepL] messageDisplayScripts.register threw:', e);
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * 5. Selection resolution - 3 strategies, with diagnostics
+ * ------------------------------------------------------------------ */
+
+async function resolveSelection(senderTab) {
+  const diagnostics = [];
+  let tabId = senderTab && senderTab.id !== undefined ? senderTab.id : null;
+
+  if (tabId === null) {
+    try {
+      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tabs && tabs[0]) {
+        tabId = tabs[0].id;
+      }
+    } catch (e) {
+      diagnostics.push('tabs.query: ' + e.message);
+    }
+  }
+
+  if (tabId === null) {
+    diagnostics.push('aucun onglet identifiable');
+    return { text: '', source: 'none', diagnostics: diagnostics };
+  }
+
+  // Strategy 1: cached push from the message display script.
+  const cached = selectionCache.get(tabId);
+  if (cached && cached.trim()) {
+    return { text: cached.trim(), source: 'cache (message display script)', diagnostics: diagnostics };
+  }
+  diagnostics.push('cache vide pour tab ' + tabId);
+
+  // Strategy 2: ask the message display script directly.
+  try {
+    const resp = await browser.tabs.sendMessage(tabId, { command: 'deeplGetSelection' });
+    if (resp && resp.text && resp.text.trim()) {
+      return { text: resp.text.trim(), source: 'message display script', diagnostics: diagnostics };
+    }
+    diagnostics.push('sendMessage: reponse vide (selection perdue ?)');
+  } catch (e) {
+    diagnostics.push('sendMessage: ' + e.message);
+  }
+
+  // Strategy 3: inject into all frames (web tabs / older Thunderbird).
+  try {
+    const results = await browser.tabs.executeScript(tabId, {
+      allFrames: true,
+      code: [
+        '(function () {',
+        '  try {',
+        '    var mp = document.getElementById("messagepane");',
+        '    if (mp && mp.contentDocument) {',
+        '      var s = mp.contentDocument.getSelection();',
+        '      if (s && String(s).trim()) return String(s).trim();',
+        '    }',
+        '    var sel = window.getSelection();',
+        '    if (sel && String(sel).trim()) return String(sel).trim();',
+        '    var frames = document.querySelectorAll("iframe");',
+        '    for (var i = 0; i < frames.length; i++) {',
+        '      try {',
+        '        var d = frames[i].contentDocument || frames[i].contentWindow.document;',
+        '        var s2 = d.getSelection();',
+        '        if (s2 && String(s2).trim()) return String(s2).trim();',
+        '      } catch (e2) {}',
+        '    }',
+        '  } catch (e3) {}',
+        '  return "";',
+        '})();'
+      ].join('\n')
+    });
+    if (results && results.length) {
+      for (const r of results) {
+        if (r && typeof r === 'string' && r.trim()) {
+          return { text: r.trim(), source: 'executeScript', diagnostics: diagnostics };
+        }
+      }
+    }
+    diagnostics.push('executeScript: aucune selection trouvee');
+  } catch (e) {
+    diagnostics.push('executeScript: ' + e.message);
+  }
+
+  return { text: '', source: 'none', diagnostics: diagnostics };
+}
+
+/* ------------------------------------------------------------------ *
+ * 6. Translation
+ * ------------------------------------------------------------------ */
 
 async function translateText(text, tab) {
   if (!apiKey) {
-    showNotification('Clé API DeepL non configurée', 'Veuillez configurer votre clé API dans les options de l\'extension.', 'warning');
-    openOptionsPage();
-    return;
+    notify('Clé API DeepL non configurée', 'Ouvrez les options de l\'extension pour saisir votre clé.');
+    return { ok: false, error: 'no_api_key' };
   }
-
-  if (!text || text.trim().length === 0) {
-    showNotification('Aucun texte sélectionné', 'Veuillez sélectionner du texte à traduire.', 'info');
-    return;
+  if (!text || !text.trim()) {
+    notify('Aucun texte sélectionné', 'Sélectionnez du texte dans un message, puis réessayez.');
+    return { ok: false, error: 'no_text' };
   }
-
   if (text.length > 10000) {
-    showNotification('Texte trop long', 'Le texte dépasse 10 000 caractères. Veuillez sélectionner un passage plus court.', 'warning');
-    return;
+    notify('Texte trop long', 'Le texte dépasse 10 000 caractères.');
+    return { ok: false, error: 'too_long' };
   }
 
+  const url = DEEPL_API_URLS[apiType] || DEEPL_API_URLS.free;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': 'DeepL-Auth-Key ' + apiKey
+    },
+    body: new URLSearchParams({
+      text: text,
+      target_lang: 'FR',
+      preserve_formatting: '1'
+    })
+  });
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const err = await response.json();
+      detail = err.message || detail;
+    } catch (e) { /* not json */ }
+    throw new Error('DeepL ' + response.status + ' - ' + detail);
+  }
+
+  const data = await response.json();
+  const translation = data.translations && data.translations[0] ? data.translations[0].text : '';
+
+  if (!translation) {
+    throw new Error('Aucune traduction reçue');
+  }
+
+  // Keep the last result so the popup can display it (context-menu path).
+  await browser.storage.local.set({
+    deeplLastResult: { original: text, translation: translation, at: Date.now() }
+  });
+
+  notify('Traduction (Français)', translation.length > 220 ? translation.slice(0, 220) + '…' : translation);
+  return { ok: true, translation: translation };
+}
+
+function notify(title, message) {
   try {
-    showNotification('Traduction en cours...', 'Connexion à DeepL...', 'info');
-
-    const response = await fetch(DEEPL_API_URLS[apiType], {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `DeepL-Auth-Key ${apiKey}`
-      },
-      body: new URLSearchParams({
-        text: text,
-        target_lang: 'FR',
-        preserve_formatting: '1',
-        tag_handling: 'html'
-      })
+    browser.notifications.create({
+      type: 'basic',
+      iconUrl: browser.runtime.getURL('icons/icon48.png'),
+      title: title,
+      message: message
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`DeepL API error: ${response.status} - ${errorData.message || response.statusText}`);
-    }
-
-    const data = await response.json();
-    const translation = data.translations?.[0]?.text || '';
-
-    if (!translation) {
-      throw new Error('Aucune traduction reçue');
-    }
-
-    // Show result in a notification and offer to copy/replace
-    await showTranslationResult(text, translation, tab);
-
-  } catch (error) {
-    console.error('Translation error:', error);
-    showNotification('Erreur de traduction', error.message || 'Impossible de traduire le texte.', 'error');
+  } catch (e) {
+    console.error('[DeepL] notification failed:', e);
   }
 }
 
-async function showTranslationResult(original, translation, tab) {
-  // Store for potential replacement
-  await browser.storage.session.set({
-    lastTranslation: { original, translation, tabId: tab.id }
-  });
+/* ------------------------------------------------------------------ *
+ * 7. Keyboard shortcut
+ * ------------------------------------------------------------------ */
 
-  // Show notification with actions
-  const notificationId = 'deepl-result-' + Date.now();
-  await browser.notifications.create(notificationId, {
-    type: 'basic',
-    iconUrl: browser.runtime.getURL('icons/icon48.png'),
-    title: 'Traduction (Français)',
-    message: translation.length > 200 ? translation.substring(0, 200) + '...' : translation,
-    priority: 2,
-    buttons: [
-      { title: 'Copier la traduction' },
-      { title: 'Remplacer dans le message' }
-    ],
-    requireInteraction: true
-  });
-
-  // Handle notification button clicks
-  browser.notifications.onButtonClicked.addListener(async (notifId, buttonIndex) => {
-    if (notifId === notificationId) {
-      const stored = await browser.storage.session.get('lastTranslation');
-      const { translation } = stored.lastTranslation || {};
-
-      if (buttonIndex === 0) {
-        // Copy to clipboard
-        await copyToClipboard(translation);
-        showNotification('Copié !', 'La traduction a été copiée dans le presse-papiers.', 'success');
-      } else if (buttonIndex === 1) {
-        // Replace in message (requires compose window)
-        await replaceInCompose(tab, translation);
+if (browser.commands && browser.commands.onCommand) {
+  browser.commands.onCommand.addListener(function (command, tab) {
+    if (command !== 'translate-selection') {
+      return;
+    }
+    resolveSelection(tab).then(function (result) {
+      if (result.text) {
+        return translateText(result.text, tab);
       }
-    }
-  });
-
-  // Auto-close after 30 seconds
-  setTimeout(() => browser.notifications.clear(notificationId), 30000);
-}
-
-async function copyToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (e) {
-    // Fallback for Thunderbird
-    await browser.tabs.executeScript({
-      code: `navigator.clipboard.writeText(${JSON.stringify(text)})`
+      notify('Aucune sélection', 'Sélectionnez du texte dans un message, puis relancez le raccourci.');
+      return null;
+    }).catch(function (e) {
+      console.error('[DeepL] command failed:', e);
     });
-  }
-}
-
-async function replaceInCompose(tab, translation) {
-  try {
-    // Check if we're in a compose window
-    const tabInfo = await browser.tabs.get(tab.id);
-    if (tabInfo.url.includes('compose')) {
-      await browser.tabs.executeScript(tab.id, {
-        code: `
-          const editor = document.querySelector('#msgcomposeWindow') || 
-                         document.querySelector('.moz-text-html') ||
-                         document.querySelector('[contenteditable="true"]');
-          if (editor) {
-            const sel = window.getSelection();
-            if (sel.rangeCount > 0) {
-              const range = sel.getRangeAt(0);
-              range.deleteContents();
-              range.insertNode(document.createTextNode(${JSON.stringify(translation)}));
-            }
-          }
-        `
-      });
-      showNotification('Remplacé !', 'Le texte a été remplacé par la traduction.', 'success');
-    } else {
-      showNotification('Non disponible', 'Le remplacement ne fonctionne que dans une fenêtre de composition.', 'warning');
-    }
-  } catch (e) {
-    console.error('Replace failed:', e);
-    showNotification('Erreur', 'Impossible de remplacer le texte.', 'error');
-  }
-}
-
-function showNotification(title, message, type = 'info') {
-  const iconMap = {
-    success: 'icons/icon48.png',
-    warning: 'icons/icon48.png',
-    error: 'icons/icon48.png',
-    info: 'icons/icon48.png'
-  };
-
-  browser.notifications.create({
-    type: 'basic',
-    iconUrl: browser.runtime.getURL(iconMap[type] || iconMap.info),
-    title: title,
-    message: message,
-    priority: type === 'error' ? 2 : 1
   });
 }
 
-function openOptionsPage() {
-  browser.runtime.openOptionsPage();
-}
+/* ------------------------------------------------------------------ *
+ * 8. Initialise the optional parts (never fatal)
+ * ------------------------------------------------------------------ */
 
-// Listen for messages from popup/content scripts
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  switch (message.action) {
-    case 'translate':
-      translateText(message.text, sender.tab).then(() => sendResponse({ success: true }));
-      return true;
-    case 'getApiKey':
-      sendResponse({ apiKey, apiType });
-      return true;
-  }
-});
+setupMenus();
+registerMessageDisplayScript();
 
-console.log('DeepL Translator background script loaded');
+console.log('[DeepL] background v1.1.0 ready. menus=' + !!(browser.menus && browser.menus.create) +
+  ' messageDisplayScripts=' + !!(browser.messageDisplayScripts && browser.messageDisplayScripts.register));

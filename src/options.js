@@ -62,9 +62,13 @@ async function testConnection() {
   testBtn.textContent = 'Test en cours...';
   testResult.className = 'test-result hidden';
 
+  const usageUrl = apiType === 'pro'
+    ? 'https://api.deepl.com/v2/usage'
+    : 'https://api-free.deepl.com/v2/usage';
+
   try {
-    const response = await fetch('https://api-free.deepl.com/v2/usage', {
-      headers: { 'Authorization': `DeepL-Auth-Key ${document.getElementById('apiKey').value.trim()}` }
+    const response = await fetch(usageUrl, {
+      headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}` }
     });
 
     if (response.ok) {

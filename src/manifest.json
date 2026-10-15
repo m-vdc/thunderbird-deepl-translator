@@ -1,19 +1,20 @@
 {
   "manifest_version": 2,
   "name": "DeepL Translator for Thunderbird",
-  "version": "1.0.0",
-  "description": "Translate selected text in emails to French using DeepL API",
+  "version": "1.1.0",
+  "description": "Traduire en français le texte sélectionné dans un mail, via l'API DeepL.",
   "author": "Marc",
   "applications": {
     "gecko": {
       "id": "deepl-translator@marc.local",
-      "strict_min_version": "78.0",
-      "strict_max_version": "157.*"
+      "strict_min_version": "91.0",
+      "strict_max_version": "160.*"
     }
   },
   "permissions": [
-    "contextMenus",
-    "activeTab",
+    "menus",
+    "messagesRead",
+    "tabs",
     "storage",
     "notifications",
     "https://api.deepl.com/*",
@@ -22,6 +23,16 @@
   "background": {
     "scripts": ["background.js"],
     "persistent": false
+  },
+  "message_display_action": {
+    "default_popup": "popup.html",
+    "default_title": "DeepL Translator",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "64": "icons/icon64.png"
+    }
   },
   "browser_action": {
     "default_popup": "popup.html",
@@ -49,7 +60,7 @@
         "default": "Ctrl+Shift+T",
         "mac": "Command+Shift+T"
       },
-      "description": "Translate selected text to French"
+      "description": "Traduire en français le texte sélectionné"
     }
   }
 }

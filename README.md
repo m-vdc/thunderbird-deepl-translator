@@ -105,6 +105,32 @@ L'extension utilise l'API DeepL v2 :
 | Raccourci ne fonctionne pas | Vérifiez les raccourcis dans les préférences de l'extension |
 | Remplacement ne marche pas | Ne fonctionne que dans une fenêtre de composition |
 
+## Journal des versions
+
+### v1.1.0 — correctif majeur
+Deux bugs bloquants corrigés :
+
+1. **`browser.contextMenus is undefined`** — `contextMenus` n'existe pas dans
+   Thunderbird. L'API correcte est `browser.menus` (permission `menus`).
+   Comme l'appel était au niveau racine du script, il levait une exception qui
+   tuait le background *avant* l'enregistrement de `runtime.onMessage` → le popup
+   recevait « Could not establish connection. Receiving end does not exist ».
+   Le listener est désormais enregistré en tout premier, et toutes les parties
+   optionnelles sont protégées et appelées en dernier.
+
+2. **Sélection illisible** — `browser.messageDisplay.getSelectedText()` n'existe
+   pas dans l'API Thunderbird. La sélection est maintenant capturée par un
+   **message display script** (`messageDisplay.js`), enregistré via
+   `browser.messageDisplayScripts.register()`, qui tourne dans le document du
+   message et transmet la sélection au background (cache par onglet + réponse
+   à la demande).
+
+Autres changements : panneau de diagnostic dans le popup, bouton dans la barre
+du message (`message_display_action`), test de clé API respectant Free/Pro.
+
+### v1.0.0
+Première version.
+
 ## Licence
 
 MIT License - Développement personnel pour Thunderbird 157.0.1
