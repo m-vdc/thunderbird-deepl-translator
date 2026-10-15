@@ -9,8 +9,6 @@
  * message, so it could never fetch a *new* selection anyway.
  */
 
-const diagLines = [];
-
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
@@ -27,11 +25,10 @@ async function init() {
   await getSelectionFromMessage();
 }
 
+// Diagnostics go to the popup console only (Ctrl+Shift+J), no longer displayed
+// in the panel.
 function diag(line) {
-  diagLines.push(line);
-  const el = document.getElementById('diag');
-  el.classList.remove('hidden');
-  el.textContent = diagLines.join('\n');
+  console.log('[DeepL]', line);
 }
 
 /* ------------------------------------------------------------------ */

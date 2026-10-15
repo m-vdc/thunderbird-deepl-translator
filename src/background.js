@@ -73,7 +73,7 @@ browser.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       } catch (e) { /* ignore */ }
       sendResponse({
         ok: true,
-        version: '1.3.0',
+        version: '1.3.1',
         hasMenus: !!(browser.menus && browser.menus.create),
         hasMessageDisplayScripts: !!(browser.messageDisplayScripts && browser.messageDisplayScripts.register),
         manifestMessageDisplayScripts: manifestScripts,
@@ -402,5 +402,5 @@ if (browser.commands && browser.commands.onCommand) {
 setupMenus();
 registerMessageDisplayScript();
 
-console.log('[DeepL] background v1.3.0 ready. menus=' + !!(browser.menus && browser.menus.create) +
+console.log('[DeepL] background v1.3.1 ready. menus=' + !!(browser.menus && browser.menus.create) +
   ' messageDisplayScripts=' + !!(browser.messageDisplayScripts && browser.messageDisplayScripts.register));

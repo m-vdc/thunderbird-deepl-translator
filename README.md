@@ -108,6 +108,11 @@ L'extension utilise l'API DeepL v2 :
 
 ## Journal des versions
 
+### v1.3.1
+- **Panneau de diagnostic retiré** du popup (interface nettoyée). Les
+  informations de diagnostic sont conservées mais écrites dans la console du
+  popup uniquement (Ctrl+Shift+J), au cas où il faudrait rediagnostiquer.
+
 ### v1.3.0
 - **Notification remplacée par une fenêtre flottante.** La bulle de notification
   Windows ne peut pas afficher plus de quelques lignes : les traductions longues
